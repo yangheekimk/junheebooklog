@@ -657,7 +657,7 @@ async function openPreReading(title, author, genre) {
 }`;
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ max_tokens:800, system:sys,
@@ -918,7 +918,7 @@ async function encourageAndNext(lastAnswer) {
 전체 답변은 150자 이내로. 친구처럼 편하게, 존댓말 없이.`;
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:300, system: sys,
@@ -968,7 +968,7 @@ async function finishGuided() {
   ).join('\n');
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:sys,
@@ -1161,7 +1161,7 @@ async function callAI(userMsg) {
 
   aiMsgs.push({ role:'user', content:userMsg });
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ max_tokens:1000, system:sys, messages:aiMsgs })
