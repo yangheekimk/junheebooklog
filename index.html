@@ -301,9 +301,12 @@
     <p style="font-size:12px;color:#888;margin-bottom:12px;">독서록을 선택하거나 자유롭게 질문하세요. 하늘고 면접 준비에도 도움이 됩니다!</p>
 
     <label>피드백 받을 독서록 선택</label>
-    <select id="ai-journal-select" onchange="loadJournalForAI()">
-      <option value="">-- 독서록 선택 (선택사항) --</option>
-    </select>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <select id="ai-journal-select" onchange="loadJournalForAI()" style="margin-bottom:0;flex:1;">
+        <option value="">-- 독서록 선택 (선택사항) --</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="populateAISelect()" style="flex-shrink:0;white-space:nowrap;">🔄 새로고침</button>
+    </div>
 
     <label style="margin-bottom:6px;">빠른 질문</label>
     <button class="ai-q-btn" onclick="askQ('선택한 독서록에 대해 전반적인 피드백과 더 깊이 생각해볼 질문 3가지를 알려줘.')">📝 전반적 피드백 + 심화 질문</button>
@@ -657,7 +660,7 @@ async function openPreReading(title, author, genre) {
 }`;
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ max_tokens:800, system:sys,
@@ -918,7 +921,7 @@ async function encourageAndNext(lastAnswer) {
 전체 답변은 150자 이내로. 친구처럼 편하게, 존댓말 없이.`;
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:300, system: sys,
@@ -968,7 +971,7 @@ async function finishGuided() {
   ).join('\n');
 
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:sys,
@@ -1100,8 +1103,53 @@ function showDetail(id) {
     ${j.question?`<div style="background:var(--sky-pale);padding:10px;border-radius:8px;font-size:12px;color:var(--sky);margin-bottom:10px;"><strong>❓ 내가 품은 질문:</strong> ${j.question}</div>`:''}
     ${j.aiFeedback?`<div style="background:var(--ink);color:var(--cream);border-radius:8px;padding:13px;font-size:12px;margin-bottom:10px;"><div style="color:var(--amber-light);font-size:10px;font-weight:700;margin-bottom:6px;">🤖 AI 피드백</div>${j.aiFeedback}</div>`:''}
     ${j.parentComment?`<div class="parent-comment"><div class="parent-comment-label">💌 엄마 메시지</div>${j.parentComment}</div>`:''}
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-sage btn-sm" onclick="polishJournal(${j.id})">✨ 문어체로 다듬기</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('detail-modal')">닫기</button>
+    </div>
   `;
   document.getElementById('detail-modal').classList.add('active');
+}
+
+async function polishJournal(id) {
+  const j = journals.find(j=>j.id===id);
+  if(!j) return;
+  if(!confirm('AI가 이 독서록을 문어체로 다듬어드릴까요? 기존 내용이 업데이트돼요.')) return;
+
+  const box = document.getElementById('detail-body');
+  box.innerHTML += `<div id="polish-loading" style="text-align:center;padding:12px;"><div class="loading"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div> 문어체로 다듬는 중...</div></div>`;
+
+  const sys = `너는 중학교 3학년 독서 지도 AI야.
+아래 독서록을 바로 제출할 수 있는 격식체 문어체로 다듬어줘.
+반드시 JSON만 출력해. 다른 말 없이.
+[원칙]
+- ~하였다, ~이다, ~생각된다 등 격식체 사용
+- 구어체(~했어, ~인것 같아, ~거든) 완전 제거
+- 학생의 핵심 생각과 통찰은 반드시 살리기
+- 중3 수준 어휘 유지
+형식: {"quote":"...","summary":"...","review":"...","question":"..."}`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ max_tokens:800, system:sys,
+        messages:[{role:'user', content:`책: ${j.title}\n인상구절: ${j.quote||''}\n요약: ${j.summary||''}\n감상: ${j.review||''}\n질문: ${j.question||''}`}] })
+    });
+    const data = await res.json();
+    const raw = data.content?.[0]?.text || '{}';
+    const p = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(p.quote) j.quote = p.quote;
+    if(p.summary) j.summary = p.summary;
+    if(p.review) j.review = p.review;
+    if(p.question) j.question = p.question;
+    save();
+    closeModal('detail-modal');
+    alert('✅ 문어체로 다듬었어요! 독서록을 다시 열어 확인해보세요.');
+  } catch(e) {
+    document.getElementById('polish-loading')?.remove();
+    alert('⚠️ 오류가 났어요. 다시 시도해주세요.');
+  }
 }
 
 // ===== AI =====
@@ -1161,7 +1209,7 @@ async function callAI(userMsg) {
 
   aiMsgs.push({ role:'user', content:userMsg });
   try {
-    const res = await fetch('/.netlify/functions/chat', {
+    const res = await fetch('/api/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ max_tokens:1000, system:sys, messages:aiMsgs })
